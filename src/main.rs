@@ -1,5 +1,5 @@
 use std::{str, fs, iter, io};
-use io::{Error, Write, Read};
+use io::{Write, Read};
 
 fn interpret(raw: &String) -> Result<(), &'static str> {
     let mut chars = raw.chars().enumerate();
@@ -83,14 +83,18 @@ fn interpret(raw: &String) -> Result<(), &'static str> {
                             chars = raw.chars().enumerate();
                             chars.nth(*new_pos).unwrap();
                         },
-                        None => break Err("Unmatched ] at {}"),
+                        None => break Err("Unmatched ]"),
                     }
                 } else {
                     loop_stack.pop();
                 }
             }
             None => {
-                break Ok(())
+                if loop_stack.len() > 0 {
+                    break Err("Unmatched ]")
+                } else {
+                    break Ok(())
+                }
             },
             _ => {},
         }
