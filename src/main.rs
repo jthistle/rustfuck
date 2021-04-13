@@ -30,7 +30,7 @@ fn interpret(raw: &String) -> Result<(), &'static str> {
                 data_pointer += 1;
 
                 if data_pointer >= 30000 {
-                    break Ok(())
+                    break Err("Data pointer out of bounds")
                 }
             },
             Some((_, '<')) => {
