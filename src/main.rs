@@ -171,7 +171,7 @@ fn pass_zero_cell(ast: &mut Ast) {
     for (i, node) in ast.iter().enumerate() {
         if progress == 0 && node.tk == TokenType::LoopStart {
             progress += 1;
-        } else if progress == 1 && node.tk == TokenType::Sub && node.value == 1 {
+        } else if progress == 1 && (node.tk == TokenType::Sub || node.tk == TokenType::Add) && node.value == 1 {
             progress += 1;
         } else if progress == 2 && node.tk == TokenType::LoopEnd {
             replace.push((i - 2, i + 1, Token::new(
