@@ -1,3 +1,6 @@
+extern crate argparse;
+use argparse::{ArgumentParser, Store, StoreFalse};
+
 use std::{str, fs, iter, io};
 use io::{Write, Read};
 
@@ -190,21 +193,39 @@ fn optimize(ast: &mut Ast) {
     pass_zero_cell(ast);
 }
 
-fn execute(ast: &Ast) -> Result<(), &'static str> {
-    let mut cells: Vec<u8> = iter::repeat(0).take(30000).collect();
+type CellMaxSize = u64;
+type CellMaxSizeLower = u32;
+
+fn execute(ast: &Ast, cell_size: u16) -> Result<(), &'static str> 
+{
+    if cell_size < 1 || cell_size > 32 {
+        return Err("Invalid cell size");
+    } 
+
+    let tape_size = 30000;
+    let mut cells: Vec<CellMaxSize> = iter::repeat(0).take(1000).collect();
     let mut data_pointer = 0;
     let mut stdout = io::stdout();
     let mut stdin = io::stdin();
     let mut instruction_pointer = 0;
 
+    let max = (2 as CellMaxSize).pow(cell_size as CellMaxSizeLower);
+
     loop {
         let token = &ast[instruction_pointer];
         match token.tk {
             TokenType::Add => {
-                cells[data_pointer] = cells[data_pointer].wrapping_add(token.value as u8);
+                cells[data_pointer] = cells[data_pointer].wrapping_add(token.value as CellMaxSize);
+                if cells[data_pointer] >= max {
+                    cells[data_pointer] %= max;
+                }
             },
             TokenType::Sub => {
-                cells[data_pointer] = cells[data_pointer].wrapping_sub(token.value as u8);
+                if cells[data_pointer] < (token.value as CellMaxSize) {
+                    cells[data_pointer] = max - (token.value as CellMaxSize - cells[data_pointer]);
+                } else {
+                    cells[data_pointer] -= token.value as CellMaxSize;
+                }
             },
             TokenType::Left => {
                 if data_pointer < token.value as usize {
@@ -213,9 +234,16 @@ fn execute(ast: &Ast) -> Result<(), &'static str> {
                 data_pointer -= token.value as usize;
             },
             TokenType::Right => {
-                if data_pointer + token.value as usize >= 30000 {
+                let new_pos = data_pointer + token.value as usize;
+                if data_pointer + token.value as usize >= tape_size {
                     return Err("Data pointer moved out of bounds!")
+                } else if new_pos > cells.len() {
+                    // Allocate more space for the tape, we need it
+                    cells.extend(
+                        iter::repeat::<CellMaxSize>(0).take(new_pos - cells.len() + 1000)
+                    );
                 }
+
                 data_pointer += token.value as usize;
             },
             TokenType::LoopStart => {
@@ -229,18 +257,24 @@ fn execute(ast: &Ast) -> Result<(), &'static str> {
                 }
             },
             TokenType::In => {
-                match stdin.read(&mut cells[data_pointer..data_pointer+1]) {
+                let mut buf = [0]; 
+                match stdin.read_exact(&mut buf) {
                     Ok(_) => {
-                        if cells[data_pointer] == 4 {
-                            cells[data_pointer] = 0;
-                            // Treat EOF as 0
-                        }
+                        cells[data_pointer] = buf[0] as CellMaxSize;
                     },
-                    Err(_) => return Err("Could not read from stdin")
+                    Err(x) => {
+                        if x.kind() == io::ErrorKind::UnexpectedEof {
+                            // Treat EOF as 0
+                            cells[data_pointer] = 0;
+                        } else {
+                            return Err("Could not read from stdin")
+                        }
+                    }
                 }
             },
             TokenType::Out => {
-                match stdout.write(&cells[data_pointer..data_pointer+1]) {
+                let buf = [cells[data_pointer] as u8];
+                match stdout.write(&buf) {
                     Ok(_) => {},
                     Err(_) => return Err("Could not write to stdout")
                 }
@@ -251,7 +285,7 @@ fn execute(ast: &Ast) -> Result<(), &'static str> {
                 }
             },
             TokenType::Set => {
-                cells[data_pointer] = token.value as u8;
+                cells[data_pointer] = token.value as CellMaxSize;
             },
             TokenType::End => return Ok(()),
             _ => {},
@@ -262,18 +296,26 @@ fn execute(ast: &Ast) -> Result<(), &'static str> {
 }
 
 fn main() -> Result<(), &'static str> {
-    let mut args = std::env::args();
+    let mut filename = String::new();
+    let mut raw = String::new();
+    let mut do_optimize = true;
+    let mut cell_size: u16 = 8;
 
-    if args.len() == 1 {
-        return Err("Need filename or args");
+    {  // this block limits scope of borrows by ap.refer() method
+        let mut ap = ArgumentParser::new();
+        ap.set_description("Run brainfuck code.");
+        ap.refer(&mut filename)
+            .add_argument("filename", Store, "File containing brainfuck code");
+        ap.refer(&mut raw)
+            .add_option(&["-r", "--raw"], Store, "Raw brainfuck code");
+        ap.refer(&mut do_optimize)
+            .add_option(&["--no-optimize"], StoreFalse, "Don't optimize code");
+        ap.refer(&mut cell_size)
+            .add_option(&["-s", "--cell-size"], Store, "Size of each cell in bits. Accepted values: 1, 2, 4, 8, 16, 32. Default 8.");
+        ap.parse_args_or_exit();
     }
 
-    args.next();
-    let filename = args.next().unwrap();
-    let raw;
-    if filename == "--raw" {
-        raw = args.next().expect("Expected raw bf code");
-    } else {
+    if filename != "" {
         raw = match fs::read_to_string(filename) {
             Ok(x) => x,
             Err(_) => return Err("Could not open file"),
@@ -285,7 +327,9 @@ fn main() -> Result<(), &'static str> {
         Err(err) => return Err(err),
     };
 
-    optimize(&mut ast);
+    if do_optimize {
+        optimize(&mut ast);       
+    }
 
-    execute(&ast)
+    execute(&ast, cell_size)
 }
