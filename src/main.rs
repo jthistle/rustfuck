@@ -165,8 +165,29 @@ fn pass_collapse_duplicated(ast: &mut Ast) {
     replace_in_ast(ast, replace);
 }
 
+fn pass_zero_cell(ast: &mut Ast) {
+    let mut replace = ReplaceVec::new();
+    let mut progress = 0;
+    for (i, node) in ast.iter().enumerate() {
+        if progress == 0 && node.tk == TokenType::LoopStart {
+            progress += 1;
+        } else if progress == 1 && node.tk == TokenType::Sub && node.value == 1 {
+            progress += 1;
+        } else if progress == 2 && node.tk == TokenType::LoopEnd {
+            replace.push((i - 2, i + 1, Token::new(
+                TokenType::Set, 0
+            )));
+        } else {
+            progress = 0;
+        }
+    }
+
+    replace_in_ast(ast, replace);
+}
+
 fn optimize(ast: &mut Ast) {
     pass_collapse_duplicated(ast);
+    pass_zero_cell(ast);
 }
 
 fn execute(ast: &Ast) -> Result<(), &'static str> {
@@ -209,7 +230,12 @@ fn execute(ast: &Ast) -> Result<(), &'static str> {
             },
             TokenType::In => {
                 match stdin.read(&mut cells[data_pointer..data_pointer+1]) {
-                    Ok(_) => {},
+                    Ok(_) => {
+                        if cells[data_pointer] == 4 {
+                            cells[data_pointer] = 0;
+                            // Treat EOF as 0
+                        }
+                    },
                     Err(_) => return Err("Could not read from stdin")
                 }
             },
@@ -224,6 +250,9 @@ fn execute(ast: &Ast) -> Result<(), &'static str> {
                     Err(_) => return Err("Could not flush stdout")
                 }
             },
+            TokenType::Set => {
+                cells[data_pointer] = token.value as u8;
+            },
             TokenType::End => return Ok(()),
             _ => {},
         }
@@ -236,24 +265,27 @@ fn main() -> Result<(), &'static str> {
     let mut args = std::env::args();
 
     if args.len() == 1 {
-        return Err("Need filename");
+        return Err("Need filename or args");
     }
 
-    let filename = args.nth(1).unwrap();
-
-    let raw = fs::read_to_string(filename)
-        .expect("Could not open file");
+    args.next();
+    let filename = args.next().unwrap();
+    let raw;
+    if filename == "--raw" {
+        raw = args.next().expect("Expected raw bf code");
+    } else {
+        raw = match fs::read_to_string(filename) {
+            Ok(x) => x,
+            Err(_) => return Err("Could not open file"),
+        }
+    }
 
     let mut ast = match parse(&raw) {
         Ok(ast) => ast,
         Err(err) => return Err(err),
     };
 
-    // println!("initial: {:?}\n", ast);
-
     optimize(&mut ast);
-    
-    // println!("optimized: {:?}", ast);
 
     execute(&ast)
 }
