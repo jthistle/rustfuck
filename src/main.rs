@@ -197,13 +197,16 @@ fn link_loops(ast: &mut Ast) -> Result<(), &'static str> {
 type CellMaxSize = u64;
 type CellMaxSizeLower = u32;
 
-fn execute(ast: &Ast, cell_size: u16) -> Result<(), &'static str> 
+fn execute(ast: &Ast, cell_size: u16, tape_size: usize) -> Result<(), &'static str> 
 {
     if cell_size < 1 || cell_size > 32 {
         return Err("Invalid cell size");
+    }
+
+    if tape_size < 1 {
+        return Err("Tape size must be greater than 0");
     } 
 
-    let tape_size = 30000;
     let mut cells: Vec<CellMaxSize> = iter::repeat(0).take(1000).collect();
     let mut data_pointer = 0;
     let mut stdout = io::stdout();
@@ -301,6 +304,7 @@ fn main() -> Result<(), &'static str> {
     let mut raw = String::new();
     let mut do_optimize = true;
     let mut cell_size: u16 = 8;
+    let mut tape_size: usize = 30000;
 
     {  // this block limits scope of borrows by ap.refer() method
         let mut ap = ArgumentParser::new();
@@ -313,6 +317,8 @@ fn main() -> Result<(), &'static str> {
             .add_option(&["--no-optimize"], StoreFalse, "Don't optimize code");
         ap.refer(&mut cell_size)
             .add_option(&["-s", "--cell-size"], Store, "Size of each cell in bits. Accepted values: 1, 2, 4, 8, 16, 32. Default 8.");
+        ap.refer(&mut tape_size)
+            .add_option(&["-t", "--tape-size"], Store, "Size of the data tape. Default 30000.");
         ap.parse_args_or_exit();
     }
 
@@ -337,5 +343,5 @@ fn main() -> Result<(), &'static str> {
         Err(err) => return Err(err),
     };
 
-    execute(&ast, cell_size)
+    execute(&ast, cell_size, tape_size)
 }

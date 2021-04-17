@@ -48,6 +48,8 @@ Optional arguments:
   -s,--cell-size CELL_SIZE
                         Size of each cell in bits. Accepted values: 1, 2, 4, 8,
                         16, 32. Default 8.
+  -t,--tape-size TAPE_SIZE
+                        Size of the data tape. Default 30000.
 ```
 
 ## Design
