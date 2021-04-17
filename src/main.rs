@@ -183,7 +183,7 @@ fn pass_zero_cell(ast: &mut Ast) {
 /// Left/right tokens can also be put in the opposite order, e.g. `[-<<<+>>>]`.1
 /// 
 /// Note that a 'move' adds the value of the src cell to the destination - it doesn't replace it.
-/// The src cell has its value set to 0.
+/// The src cell has its value set to 0 afterwards.
 /// 
 /// This pass must be run after Collapse Duplicated.
 fn pass_move_value(ast: &mut Ast) {

@@ -64,10 +64,9 @@ Rustfuck is a simple but powerful interpreter. It works as follows:
       This is a really simple optimization, but can save loads of time in loops.
    2. The second pass translates any occurences of `[-]` into a single instruction to set the current cell's value to `0`.
       The same applies to `[+]`.
+   3. The third pass translates 'moves' to single tokens. A move looks like `[->>+<<]`, but doesn't actually 'move' the source cell's value,
+      as such. It's more like a sum of the source and destination cells into the destination cell, with the source cell set to 0 at the end.
+      Anyway, this is a common enough idiom that optimizing it increases performance noticeably in some cases.
 3. Loop tokens are linked to their respective start/end points to allow quick jumps during execution.
 4. Finally, the syntax tree is executed. Each token in the tree is taken in turn and executed sequentially, and loop jumps are carried out
-   when needed.
-
-There are other optimizations that could be made, but none have so much of an effect as the two previously mentioned.
-   
-
+   when needed.   
