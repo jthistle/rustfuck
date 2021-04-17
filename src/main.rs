@@ -236,7 +236,7 @@ fn execute(ast: &Ast, cell_size: u16) -> Result<(), &'static str>
             },
             TokenType::Right => {
                 let new_pos = data_pointer + token.value as usize;
-                if data_pointer + token.value as usize >= tape_size {
+                if new_pos >= tape_size {
                     return Err("Data pointer moved out of bounds (too far right)!")
                 } else if new_pos > cells.len() {
                     // Allocate more space for the tape, we need it
