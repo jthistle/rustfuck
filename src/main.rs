@@ -1,7 +1,10 @@
 extern crate argparse;
 use argparse::{ArgumentParser, Store, StoreFalse};
 
-use std::{str, fs, iter, io};
+mod cell_size;
+use cell_size::{CellSize};
+
+use std::{str, fs, io};
 use io::{Write, Read};
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -259,43 +262,28 @@ fn link_loops(ast: &mut Ast) -> Result<(), &'static str> {
     }
 }
 
-type CellMaxSize = u64;
-type CellMaxSizeLower = u32;
-
 /// Runs the AST.
-fn execute(ast: &Ast, cell_size: u16, tape_size: usize) -> Result<(), &'static str> 
+fn execute<T>(ast: &Ast, tape_size: usize) -> Result<(), &'static str>
+where T: CellSize + Clone + Copy
 {
-    if cell_size < 1 || cell_size > 32 {
-        return Err("Invalid cell size");
-    }
-
     if tape_size < 1 {
         return Err("Tape size must be greater than 0");
     } 
 
-    let mut cells: Vec<CellMaxSize> = iter::repeat(0).take(1000).collect();
+    let mut cells: Vec<T> = T::get_zeroes(1000).collect();
     let mut data_pointer = 0;
     let mut stdout = io::stdout();
     let mut stdin = io::stdin();
     let mut instruction_pointer = 0;
 
-    let max = (2 as CellMaxSize).pow(cell_size as CellMaxSizeLower);
-
     loop {
         let token = &ast[instruction_pointer];
         match token.tk {
             TokenType::Add => {
-                cells[data_pointer] = cells[data_pointer].wrapping_add(token.value as CellMaxSize);
-                if cells[data_pointer] >= max {
-                    cells[data_pointer] %= max;
-                }
+                cells[data_pointer].add_to_cell(T::from_tk_value(token.value));
             },
             TokenType::Sub => {
-                if cells[data_pointer] < (token.value as CellMaxSize) {
-                    cells[data_pointer] = max - (token.value as CellMaxSize - cells[data_pointer]);
-                } else {
-                    cells[data_pointer] -= token.value as CellMaxSize;
-                }
+                cells[data_pointer].sub_from_cell(T::from_tk_value(token.value));
             },
             TokenType::Left => {
                 if data_pointer < token.value as usize {
@@ -310,19 +298,19 @@ fn execute(ast: &Ast, cell_size: u16, tape_size: usize) -> Result<(), &'static s
                 } else if new_pos > cells.len() {
                     // Allocate more space for the tape, we need it
                     cells.extend(
-                        iter::repeat::<CellMaxSize>(0).take(new_pos - cells.len() + 1000)
+                        T::get_zeroes(new_pos - cells.len() + 1000)
                     );
                 }
 
                 data_pointer += token.value as usize;
             },
             TokenType::LoopStart => {
-                if cells[data_pointer] == 0 {
+                if cells[data_pointer].is_zero() {
                     instruction_pointer = token.value as usize;
                 }
             },
             TokenType::LoopEnd => {
-                if cells[data_pointer] > 0 {
+                if cells[data_pointer].is_nonzero() {
                     instruction_pointer = token.value as usize;
                 }
             },
@@ -330,12 +318,12 @@ fn execute(ast: &Ast, cell_size: u16, tape_size: usize) -> Result<(), &'static s
                 let mut buf = [0]; 
                 match stdin.read_exact(&mut buf) {
                     Ok(_) => {
-                        cells[data_pointer] = buf[0] as CellMaxSize;
+                        cells[data_pointer] = T::from_stdout(buf[0]);
                     },
                     Err(x) => {
                         if x.kind() == io::ErrorKind::UnexpectedEof {
                             // Treat EOF as 0
-                            cells[data_pointer] = 0;
+                            cells[data_pointer] = T::from_tk_value(0);
                         } else {
                             return Err("Could not read from stdin")
                         }
@@ -343,7 +331,7 @@ fn execute(ast: &Ast, cell_size: u16, tape_size: usize) -> Result<(), &'static s
                 }
             },
             TokenType::Out => {
-                let buf = [cells[data_pointer] as u8];
+                let buf = [cells[data_pointer].to_stdin()];
                 match stdout.write(&buf) {
                     Ok(_) => {},
                     Err(_) => return Err("Could not write to stdout")
@@ -355,10 +343,10 @@ fn execute(ast: &Ast, cell_size: u16, tape_size: usize) -> Result<(), &'static s
                 }
             },
             TokenType::Set => {
-                cells[data_pointer] = token.value as CellMaxSize;
+                cells[data_pointer] = T::from_tk_value(token.value);
             },
             TokenType::Move => {
-                if cells[data_pointer] != 0 {
+                if cells[data_pointer].is_nonzero() {
                     let dest = data_pointer as i32 + token.value;
                     if dest < 0 {
                         return Err("Data pointer moved out of bounds (too far left)")
@@ -371,15 +359,13 @@ fn execute(ast: &Ast, cell_size: u16, tape_size: usize) -> Result<(), &'static s
                         // Allocate more space for the tape, we need it
                         // TODO this is duplicated code, refactor this in future
                         cells.extend(
-                            iter::repeat::<CellMaxSize>(0).take(dest - cells.len() + 1000)
+                            T::get_zeroes(dest - cells.len() + 1000)
                         );
                     }
 
-                    cells[dest] = cells[dest].wrapping_add(cells[data_pointer] as CellMaxSize);
-                    if cells[dest] >= max {
-                        cells[dest] %= max;
-                    }
-                    cells[data_pointer] = 0;
+                    let val = cells[data_pointer];
+                    cells[dest].add_to_cell(val);
+                    cells[data_pointer] = T::from_tk_value(0);
                 }
             },
             TokenType::End => return Ok(()),
@@ -394,7 +380,7 @@ fn main() -> Result<(), &'static str> {
     let mut filename = String::new();
     let mut raw = String::new();
     let mut do_optimize = true;
-    let mut cell_size: u16 = 8;
+    let mut cell_size: u8 = 8;
     let mut tape_size: usize = 30000;
 
     {  // this block limits scope of borrows by ap.refer() method
@@ -407,7 +393,7 @@ fn main() -> Result<(), &'static str> {
         ap.refer(&mut do_optimize)
             .add_option(&["--no-optimize"], StoreFalse, "Don't optimize code");
         ap.refer(&mut cell_size)
-            .add_option(&["-s", "--cell-size"], Store, "Size of each cell in bits. Accepted values: 1, 2, 4, 8, 16, 32. Default 8.");
+            .add_option(&["-s", "--cell-size"], Store, "Size of each cell in bits. Accepted values: 8, 16, 32, 64. Default 8.");
         ap.refer(&mut tape_size)
             .add_option(&["-t", "--tape-size"], Store, "Size of the data tape. Default 30000.");
         ap.parse_args_or_exit();
@@ -436,5 +422,12 @@ fn main() -> Result<(), &'static str> {
         Err(err) => return Err(err),
     };
 
-    execute(&ast, cell_size, tape_size)
+    match cell_size {
+        8 => execute::<u8>(&ast, tape_size),
+        16 => execute::<u16>(&ast, tape_size),
+        32 => execute::<u32>(&ast, tape_size),
+        64 => execute::<u64>(&ast, tape_size),
+        _ => Err("Unsupported cell size")
+    }
+    
 }

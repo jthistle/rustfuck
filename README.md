@@ -1,6 +1,6 @@
 # Rustfuck
 
-An optimizing interpreter for brainfuck, written in Rust. It's really fast.
+An optimizing interpreter for brainfuck, written in Rust. It's really fast (but not as fast as [Tritium](https://github.com/rdebath/Brainfuck/tree/master/tritium#tritium)).
 
 ## Build & install
 
