@@ -39,8 +39,6 @@ type Ast = Vec<Token>;
 fn parse(raw: &String) -> Result<Ast, &'static str> {
     let mut ast = Ast::new();
     let mut chars = raw.chars();
-    let mut loop_stack: Vec<usize> = Vec::new();
-    let mut i = 0;
 
     let res = loop {
         let c = chars.next();
@@ -76,35 +74,20 @@ fn parse(raw: &String) -> Result<Ast, &'static str> {
                 );
             },
             Some('[') => {
-                loop_stack.push(i as usize);
                 ast.push(
                     Token::new(TokenType::LoopStart, -1)
                 );
             },
             Some(']') => {
-                let jmp = match loop_stack.pop() {
-                    Some(x) => x,
-                    None => break Err("Unmatched ]")
-                };
-                
                 ast.push(
-                    Token::new(TokenType::LoopEnd, jmp as i32)
+                    Token::new(TokenType::LoopEnd, -1)
                 );
-
-                ast[jmp].value = i;
-            }
+            },
             None => {
-                if loop_stack.len() > 0 {
-                    break Err("Unmatched ]")
-                } else {
-                    break Ok(())
-                }
+                break Ok(())
             },
-            _ => {
-                i -= 1;
-            },
+            _ => {},
         }
-        i += 1;
     };
 
     ast.push(
@@ -117,24 +100,13 @@ fn parse(raw: &String) -> Result<Ast, &'static str> {
     }
 }
 
-
 type ReplaceVec = Vec::<(usize, usize, Token)>;
 
 fn replace_in_ast(ast: &mut Ast, mut replacements: ReplaceVec) {
     replacements.reverse();
     for (start, end, token) in replacements {
-        let diff = (end - start - 1) as i32;
         ast.drain(start..end);
         ast.insert(start, token);
-
-        // Update jump points
-        for node in ast.iter_mut() {
-            if node.tk == TokenType::LoopStart || node.tk == TokenType::LoopEnd {
-                if node.value as usize > start {
-                    node.value -= diff;
-                }
-            }
-        }
     }
 }
 
@@ -192,6 +164,34 @@ fn pass_zero_cell(ast: &mut Ast) {
 fn optimize(ast: &mut Ast) {
     pass_collapse_duplicated(ast);
     pass_zero_cell(ast);
+}
+
+fn link_loops(ast: &mut Ast) -> Result<(), &'static str> {
+    let mut loop_stack: Vec<usize> = Vec::new();
+
+    for i in 0..ast.len() {
+        match ast[i].tk {
+            TokenType::LoopStart => {
+                loop_stack.push(i);
+            },
+            TokenType::LoopEnd => {
+                let jmp = match loop_stack.pop() {
+                    Some(x) => x,
+                    None => return Err("Unmatched ]")
+                };
+
+                ast[i].value = jmp as i32;
+                ast[jmp].value = i as i32;
+            }
+            _ => {},
+        }
+    };
+
+    if loop_stack.len() > 0 {
+        Err("Unmatched [")
+    } else {
+        Ok(())
+    }
 }
 
 type CellMaxSize = u64;
@@ -331,6 +331,11 @@ fn main() -> Result<(), &'static str> {
     if do_optimize {
         optimize(&mut ast);       
     }
+
+    match link_loops(&mut ast) {
+        Ok(_) => {},
+        Err(err) => return Err(err),
+    };
 
     execute(&ast, cell_size)
 }
