@@ -182,6 +182,9 @@ fn pass_zero_cell(ast: &mut Ast) {
 /// This also accepts any number of left/right tokens, e.g. `[->>>+<<<]` can also be optimized.
 /// Left/right tokens can also be put in the opposite order, e.g. `[-<<<+>>>]`.1
 /// 
+/// Note that a 'move' adds the value of the src cell to the destination - it doesn't replace it.
+/// The src cell has its value set to 0.
+/// 
 /// This pass must be run after Collapse Duplicated.
 fn pass_move_value(ast: &mut Ast) {
     let mut replace = ReplaceVec::new();
@@ -355,24 +358,29 @@ fn execute(ast: &Ast, cell_size: u16, tape_size: usize) -> Result<(), &'static s
                 cells[data_pointer] = token.value as CellMaxSize;
             },
             TokenType::Move => {
-                let dest = data_pointer as i32 + token.value;
-                if dest < 0 {
-                    return Err("Data pointer moved out of bounds (too far left)")
-                }
-                
-                let dest = dest as usize;
-                if dest >= tape_size {
-                    return Err("Data pointer moved out of bounds (too far right)")
-                } else if dest > cells.len() {
-                    // Allocate more space for the tape, we need it
-                    // TODO this is duplicated code, refactor this in future
-                    cells.extend(
-                        iter::repeat::<CellMaxSize>(0).take(dest - cells.len() + 1000)
-                    );
-                }
+                if cells[data_pointer] != 0 {
+                    let dest = data_pointer as i32 + token.value;
+                    if dest < 0 {
+                        return Err("Data pointer moved out of bounds (too far left)")
+                    }
+                    
+                    let dest = dest as usize;
+                    if dest >= tape_size {
+                        return Err("Data pointer moved out of bounds (too far right)")
+                    } else if dest > cells.len() {
+                        // Allocate more space for the tape, we need it
+                        // TODO this is duplicated code, refactor this in future
+                        cells.extend(
+                            iter::repeat::<CellMaxSize>(0).take(dest - cells.len() + 1000)
+                        );
+                    }
 
-                cells[dest] = cells[data_pointer];
-                cells[data_pointer] = 0;
+                    cells[dest] = cells[dest].wrapping_add(cells[data_pointer] as CellMaxSize);
+                    if cells[dest] >= max {
+                        cells[dest] %= max;
+                    }
+                    cells[data_pointer] = 0;
+                }
             },
             TokenType::End => return Ok(()),
             _ => {},
