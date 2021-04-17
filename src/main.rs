@@ -174,12 +174,13 @@ fn pass_zero_cell(ast: &mut Ast) {
     for (i, node) in ast.iter().enumerate() {
         if progress == 0 && node.tk == TokenType::LoopStart {
             progress += 1;
-        } else if progress == 1 && (node.tk == TokenType::Sub || node.tk == TokenType::Add) && node.value == 1 {
+        } else if progress == 1 && (node.tk == TokenType::Sub || node.tk == TokenType::Add) && node.value % 2 == 1 {
             progress += 1;
         } else if progress == 2 && node.tk == TokenType::LoopEnd {
             replace.push((i - 2, i + 1, Token::new(
                 TokenType::Set, 0
             )));
+            progress = 0;
         } else {
             progress = 0;
         }
@@ -229,14 +230,14 @@ fn execute(ast: &Ast, cell_size: u16) -> Result<(), &'static str>
             },
             TokenType::Left => {
                 if data_pointer < token.value as usize {
-                    return Err("Data pointer moved out of bounds!")
+                    return Err("Data pointer moved out of bounds (too far left)!")
                 }
                 data_pointer -= token.value as usize;
             },
             TokenType::Right => {
                 let new_pos = data_pointer + token.value as usize;
                 if data_pointer + token.value as usize >= tape_size {
-                    return Err("Data pointer moved out of bounds!")
+                    return Err("Data pointer moved out of bounds (too far right)!")
                 } else if new_pos > cells.len() {
                     // Allocate more space for the tape, we need it
                     cells.extend(
