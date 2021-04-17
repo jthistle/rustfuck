@@ -1,6 +1,6 @@
 # Rustfuck
 
-An optimizing interpreter for brainfuck, written in Rust.
+An optimizing interpreter for brainfuck, written in Rust. It's really fast.
 
 ## Build & install
 
