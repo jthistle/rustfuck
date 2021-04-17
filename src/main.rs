@@ -308,7 +308,7 @@ fn main() -> Result<(), &'static str> {
         ap.refer(&mut filename)
             .add_argument("filename", Store, "File containing brainfuck code");
         ap.refer(&mut raw)
-            .add_option(&["-r", "--raw"], Store, "Raw brainfuck code");
+            .add_option(&["-r", "--raw"], Store, "Raw brainfuck code to run");
         ap.refer(&mut do_optimize)
             .add_option(&["--no-optimize"], StoreFalse, "Don't optimize code");
         ap.refer(&mut cell_size)
