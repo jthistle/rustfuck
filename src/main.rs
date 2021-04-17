@@ -419,13 +419,9 @@ fn main() -> Result<(), &'static str> {
         Err(err) => return Err(err),
     };
 
-    println!("before: {:?}", ast);
-
     if do_optimize {
         optimize(&mut ast);       
     }
-
-    println!("after: {:?}", ast);
 
     match link_loops(&mut ast) {
         Ok(_) => {},
