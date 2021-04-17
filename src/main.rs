@@ -127,7 +127,13 @@ fn pass_collapse_duplicated(ast: &mut Ast) {
     let mut current = TokenType::Invalid;
     let mut replace = ReplaceVec::new();
     for (i, node) in ast.iter().enumerate() {
-        if current == TokenType::Invalid {
+        if node.tk == current {
+            count += 1;
+        } else {
+            if count > 1 {
+                replace.push((start, i, Token::new(current, count as i32)));
+            }
+
             if node.tk == TokenType::Add
             || node.tk == TokenType::Sub
             || node.tk == TokenType::Left
@@ -135,14 +141,8 @@ fn pass_collapse_duplicated(ast: &mut Ast) {
                 start = i;
                 count = 1;
                 current = node.tk;
-            }
-        } else {
-            if node.tk == current {
-                count += 1;
             } else {
-                if count > 1 {
-                    replace.push((start, i, Token::new(current, count as i32)));
-                }
+                count = 0;
                 current = TokenType::Invalid;
             }
         }
@@ -194,7 +194,7 @@ fn pass_move_value(ast: &mut Ast) {
             progress += 1;
         } else if progress == 1 && node.tk == TokenType::Sub && node.value == 1 {
             progress += 1;
-        } else if progress == 2 && (node.tk == TokenType::Left || node.tk == TokenType::Right) && node.value == 1 {
+        } else if progress == 2 && (node.tk == TokenType::Left || node.tk == TokenType::Right) {
             if node.tk == TokenType::Left {
                 next_direction = TokenType::Right;
             } else {
