@@ -46,10 +46,11 @@ Optional arguments:
   -r,--raw RAW          Raw brainfuck code to run
   --no-optimize         Don't optimize code
   -s,--cell-size CELL_SIZE
-                        Size of each cell in bits. Accepted values: 1, 2, 4, 8,
-                        16, 32. Default 8.
+                        Size of each cell in bits. Accepted values: 8, 16, 32,
+                        64. Default 8.
   -t,--tape-size TAPE_SIZE
                         Size of the data tape. Default 30000.
+  --dump                Dump the AST and exit without executing the code.
 ```
 
 ## Design
@@ -69,4 +70,4 @@ Rustfuck is a simple but powerful interpreter. It works as follows:
       Anyway, this is a common enough idiom that optimizing it increases performance noticeably in some cases.
 3. Loop tokens are linked to their respective start/end points to allow quick jumps during execution.
 4. Finally, the syntax tree is executed. Each token in the tree is taken in turn and executed sequentially, and loop jumps are carried out
-   when needed.   
+   when needed.
