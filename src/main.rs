@@ -1,5 +1,5 @@
 extern crate argparse;
-use argparse::{ArgumentParser, Store, StoreFalse};
+use argparse::{ArgumentParser, Store, StoreFalse, StoreTrue};
 
 mod cell_size;
 use cell_size::{CellSize};
@@ -39,6 +39,113 @@ impl Token {
 }
 
 type Ast = Vec<Token>;
+
+trait Dumpable {
+    fn dump(&self) -> String;
+}
+
+impl Dumpable for Ast {
+    fn dump(&self) -> String {
+        let mut out = String::new();
+        let mut depth = 0;
+        let mut line = String::new();
+        for token in self.iter() {
+            let mut end_line = false;
+
+            let mut part: String = match token.tk {
+                TokenType::Add => {
+                    if token.value == 1 {
+                        "+".to_string()
+                    } else {
+                        format!("+{}", token.value)
+                    }
+                },
+                TokenType::Sub => {
+                    if token.value == 1 {
+                        "-".to_string()
+                    } else {
+                        format!("-{}", token.value)
+                    }
+                },
+                TokenType::Left => {
+                    if token.value == 1 {
+                        "<".to_string()
+                    } else {
+                        format!("<{}", token.value)
+                    }
+                },
+                TokenType::Right => {
+                    if token.value == 1 {
+                        ">".to_string()
+                    } else {
+                        format!(">{}", token.value)
+                    }
+                },
+                TokenType::In => {
+                    ",".to_string()
+                },
+                TokenType::Out => {
+                    ".".to_string()
+                },
+                TokenType::LoopStart => {
+                    end_line = true;
+                    "[".to_string()
+                },
+                TokenType::LoopEnd => {
+                    end_line = true;
+                    "]".to_string()
+                },
+                TokenType::Set => {
+                    format!("S{}", token.value)
+                },
+                TokenType::Move => {
+                    format!("M{}", token.value)
+                },
+                TokenType::Invalid => {
+                    "INVALID".to_string()
+                },
+                TokenType::End => {
+                    ":".to_string()
+                },
+            };
+
+            part.push(' ');
+
+            if ! end_line {
+                line.push_str(&part);
+            }
+
+            if line.len() >= 80 || end_line {
+                out.push_str(
+                    &format!("{}{}\n",
+                        "  ".repeat(depth),
+                        line
+                    )
+                );
+                line.clear();
+            }
+
+            if token.tk == TokenType::LoopEnd {
+                depth -= 1;
+            }
+
+            if end_line {
+                out.push_str(
+                    &format!("{}{}\n",
+                        "  ".repeat(depth),
+                        part
+                    )
+                );
+            }
+
+            if token.tk == TokenType::LoopStart {
+                depth += 1;
+            }
+        }
+
+        out
+    }
+}
 
 /// Parses raw text into an intermediate representation.
 fn parse(raw: &String) -> Result<Ast, &'static str> {
@@ -98,7 +205,7 @@ fn parse(raw: &String) -> Result<Ast, &'static str> {
     ast.push(
         Token::new(TokenType::End, 0)
     );
-    
+
     match res {
         Ok(_) => Ok(ast),
         Err(x) => Err(x),
@@ -121,7 +228,7 @@ fn replace_in_ast(ast: &mut Ast, mut replacements: ReplaceVec) {
 }
 
 /// Collapses duplicated tokens into a single token.
-/// 
+///
 /// e.g. `------`, which is represented as six `TokenType::Sub` with value `1`,
 /// is replaced by a single `TokenType::Sub` with value `6`. This applies to `-`, `+`, `>`, and `<`.
 fn pass_collapse_duplicated(ast: &mut Ast) {
@@ -155,10 +262,10 @@ fn pass_collapse_duplicated(ast: &mut Ast) {
 }
 
 /// Replaces 'zeroing' instructions with a single token to reduce time spent in loops.
-/// 
+///
 /// This replaces `[-]` and `[+]` (and all variants of these which have an odd number of inner symbols)
 /// with a single token of `TokenType::Set` and value `0`.
-/// 
+///
 /// This pass must be run after Collapse Duplicated.
 fn pass_zero_cell(ast: &mut Ast) {
     let mut replace = ReplaceVec::new();
@@ -184,10 +291,10 @@ fn pass_zero_cell(ast: &mut Ast) {
 /// Replaces idiomatic moves of the form `[->+<]` with a single `TokenType::Move` token.
 /// This also accepts any number of left/right tokens, e.g. `[->>>+<<<]` can also be optimized.
 /// Left/right tokens can also be put in the opposite order, e.g. `[-<<<+>>>]`.1
-/// 
+///
 /// Note that a 'move' adds the value of the src cell to the destination - it doesn't replace it.
 /// The src cell has its value set to 0 afterwards.
-/// 
+///
 /// This pass must be run after Collapse Duplicated.
 fn pass_move_value(ast: &mut Ast) {
     let mut replace = ReplaceVec::new();
@@ -232,7 +339,7 @@ fn optimize(ast: &mut Ast) {
     pass_move_value(ast);
 }
 
-/// Caches loop jump endpoints to reduce time spent searching during 
+/// Caches loop jump endpoints to reduce time spent searching during
 /// execution.
 fn link_loops(ast: &mut Ast) -> Result<(), &'static str> {
     let mut loop_stack: Vec<usize> = Vec::new();
@@ -268,7 +375,7 @@ where T: CellSize + Clone + Copy
 {
     if tape_size < 1 {
         return Err("Tape size must be greater than 0");
-    } 
+    }
 
     let mut cells: Vec<T> = T::get_zeroes(1000).collect();
     let mut data_pointer = 0;
@@ -315,7 +422,7 @@ where T: CellSize + Clone + Copy
                 }
             },
             TokenType::In => {
-                let mut buf = [0]; 
+                let mut buf = [0];
                 match stdin.read_exact(&mut buf) {
                     Ok(_) => {
                         cells[data_pointer] = T::from_stdout(buf[0]);
@@ -351,7 +458,7 @@ where T: CellSize + Clone + Copy
                     if dest < 0 {
                         return Err("Data pointer moved out of bounds (too far left)")
                     }
-                    
+
                     let dest = dest as usize;
                     if dest >= tape_size {
                         return Err("Data pointer moved out of bounds (too far right)")
@@ -382,6 +489,7 @@ fn main() -> Result<(), &'static str> {
     let mut do_optimize = true;
     let mut cell_size: u8 = 8;
     let mut tape_size: usize = 30000;
+    let mut dump = false;
 
     {  // this block limits scope of borrows by ap.refer() method
         let mut ap = ArgumentParser::new();
@@ -396,6 +504,8 @@ fn main() -> Result<(), &'static str> {
             .add_option(&["-s", "--cell-size"], Store, "Size of each cell in bits. Accepted values: 8, 16, 32, 64. Default 8.");
         ap.refer(&mut tape_size)
             .add_option(&["-t", "--tape-size"], Store, "Size of the data tape. Default 30000.");
+        ap.refer(&mut dump)
+            .add_option(&["--dump"], StoreTrue, "Dump the AST and exit without executing the code.");
         ap.parse_args_or_exit();
     }
 
@@ -414,13 +524,19 @@ fn main() -> Result<(), &'static str> {
     };
 
     if do_optimize {
-        optimize(&mut ast);       
+        optimize(&mut ast);
     }
 
     match link_loops(&mut ast) {
         Ok(_) => {},
         Err(err) => return Err(err),
     };
+
+
+    if dump {
+        println!("{}", ast.dump());
+        return Ok(());
+    }
 
     match cell_size {
         8 => execute::<u8>(&ast, tape_size),
@@ -429,5 +545,5 @@ fn main() -> Result<(), &'static str> {
         64 => execute::<u64>(&ast, tape_size),
         _ => Err("Unsupported cell size")
     }
-    
+
 }
