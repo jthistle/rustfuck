@@ -297,9 +297,9 @@ fn pass_zero_cell(ast: &mut Ast) {
 ///
 /// This pass must be run after Collapse Duplicated.
 fn pass_move_value(ast: &mut Ast) {
+    let mut moves: Vec<i32> = Vec::new();
+    let mut displacement = 0;
     let mut replace = ReplaceVec::new();
-    let mut next_direction = TokenType::Invalid;
-    let mut move_count = -1;
     let mut progress = 0;
 
     for (i, node) in ast.iter().enumerate() {
@@ -309,22 +309,44 @@ fn pass_move_value(ast: &mut Ast) {
             progress += 1;
         } else if progress == 2 && (node.tk == TokenType::Left || node.tk == TokenType::Right) {
             if node.tk == TokenType::Left {
-                next_direction = TokenType::Right;
+                displacement -= node.value;
             } else {
-                next_direction = TokenType::Left;
+                displacement += node.value;
             }
-            move_count = node.value;
             progress += 1;
-        } else if progress == 3 && node.tk == TokenType::Add && node.value == 1 {
-            progress += 1;
-        } else if progress == 4 && node.tk == next_direction && node.value == move_count {
-            progress += 1;
-        } else if progress == 5 && node.tk == TokenType::LoopEnd {
-            replace.push((i - 5, i + 1, Token::new(
-                TokenType::Move, move_count * (if next_direction == TokenType::Right { -1 } else { 1 })
+        } else if progress == 3 && node.tk == TokenType::Add && node.value == 1 && displacement != 0 && !moves.contains(&displacement) {
+            moves.push(displacement);
+            progress = 2;
+        } else if progress == 3 && node.tk == TokenType::LoopEnd && displacement == 0 {
+            for (j, m) in moves.iter().enumerate() {
+                let start;
+                if j == 0 {
+                    start = i - moves.len() * 2 - 3;
+                } else {
+                    start = i - (moves.len() - j) * 2;
+                }
+
+                let end;
+                if j == 0 {
+                    end = start + 5;
+                } else {
+                    end = start + 2;
+                }
+
+                replace.push((start, end, Token::new(
+                    TokenType::Move, *m
+                )));
+            }
+
+            replace.push((i, i + 1, Token::new(
+                TokenType::Set, 0
             )));
+
+            moves.clear();
             progress = 0;
         } else {
+            moves.clear();
+            displacement = 0;
             progress = 0;
         }
     }
@@ -472,7 +494,6 @@ where T: CellSize + Clone + Copy
 
                     let val = cells[data_pointer];
                     cells[dest].add_to_cell(val);
-                    cells[data_pointer] = T::from_tk_value(0);
                 }
             },
             TokenType::End => return Ok(()),
