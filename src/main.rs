@@ -307,6 +307,8 @@ fn pass_move_value(ast: &mut Ast) {
             progress += 1;
         } else if progress == 1 && node.tk == TokenType::Sub && node.value == 1 {
             progress += 1;
+            moves.clear();
+            displacement = 0;
         } else if progress == 2 && (node.tk == TokenType::Left || node.tk == TokenType::Right) {
             if node.tk == TokenType::Left {
                 displacement -= node.value;
@@ -345,8 +347,6 @@ fn pass_move_value(ast: &mut Ast) {
             moves.clear();
             progress = 0;
         } else {
-            moves.clear();
-            displacement = 0;
             progress = 0;
         }
     }
