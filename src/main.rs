@@ -271,15 +271,15 @@ fn pass_zero_cell(ast: &mut Ast) {
     let mut replace = ReplaceVec::new();
     let mut progress = 0;
     for (i, node) in ast.iter().enumerate() {
-        if progress == 0 && node.tk == TokenType::LoopStart {
-            progress += 1;
-        } else if progress == 1 && (node.tk == TokenType::Sub || node.tk == TokenType::Add) && node.value % 2 == 1 {
+        if progress == 1 && (node.tk == TokenType::Sub || node.tk == TokenType::Add) && node.value % 2 == 1 {
             progress += 1;
         } else if progress == 2 && node.tk == TokenType::LoopEnd {
             replace.push((i - 2, i + 1, Token::new(
                 TokenType::Set, 0
             )));
             progress = 0;
+        } else if node.tk == TokenType::LoopStart {
+            progress = 1;
         } else {
             progress = 0;
         }
@@ -303,9 +303,7 @@ fn pass_move_value(ast: &mut Ast) {
     let mut progress = 0;
 
     for (i, node) in ast.iter().enumerate() {
-        if progress == 0 && node.tk == TokenType::LoopStart {
-            progress += 1;
-        } else if progress == 1 && node.tk == TokenType::Sub && node.value == 1 {
+        if progress == 1 && node.tk == TokenType::Sub && node.value == 1 {
             progress += 1;
             moves.clear();
             displacement = 0;
@@ -346,6 +344,8 @@ fn pass_move_value(ast: &mut Ast) {
 
             moves.clear();
             progress = 0;
+        } else if node.tk == TokenType::LoopStart {
+            progress = 1;
         } else {
             progress = 0;
         }
