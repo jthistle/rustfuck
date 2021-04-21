@@ -288,9 +288,13 @@ fn pass_zero_cell(ast: &mut Ast) {
     replace_in_ast(ast, replace);
 }
 
-/// Replaces idiomatic moves of the form `[->+<]` with a single `TokenType::Move` token.
+/// Replaces idiomatic moves of the form `[->+<]` with a `TokenType::Move` tokens, followed by a
+/// single `TokenType::Set` of value 0.
 /// This also accepts any number of left/right tokens, e.g. `[->>>+<<<]` can also be optimized.
-/// Left/right tokens can also be put in the opposite order, e.g. `[-<<<+>>>]`.1
+/// Left/right tokens can also be put in the opposite order, e.g. `[-<<<+>>>]`.
+/// It can also optimize multiple moves, such as `[->>+>+>>>+<<<<<<]`.
+///
+/// TODO: optimize multiplying moves, e.g. `[->>++<<]`.
 ///
 /// Note that a 'move' adds the value of the src cell to the destination - it doesn't replace it.
 /// The src cell has its value set to 0 afterwards.
@@ -447,7 +451,7 @@ where T: CellSize + Clone + Copy
                 let mut buf = [0];
                 match stdin.read_exact(&mut buf) {
                     Ok(_) => {
-                        cells[data_pointer] = T::from_stdout(buf[0]);
+                        cells[data_pointer] = T::from_stdin(buf[0]);
                     },
                     Err(x) => {
                         if x.kind() == io::ErrorKind::UnexpectedEof {
@@ -460,7 +464,7 @@ where T: CellSize + Clone + Copy
                 }
             },
             TokenType::Out => {
-                let buf = [cells[data_pointer].to_stdin()];
+                let buf = [cells[data_pointer].to_stdout()];
                 match stdout.write(&buf) {
                     Ok(_) => {},
                     Err(_) => return Err("Could not write to stdout")

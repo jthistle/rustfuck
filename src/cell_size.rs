@@ -2,8 +2,8 @@
 use std::{iter};
 
 pub trait CellSize {
-    fn get_zeroes(count: usize) -> iter::Take<iter::Repeat<Self>> 
-    where Self: Sized, 
+    fn get_zeroes(count: usize) -> iter::Take<iter::Repeat<Self>>
+    where Self: Sized,
           iter::Repeat<Self>: Iterator;
 
     fn add_to_cell(&mut self, value: Self);
@@ -12,8 +12,8 @@ pub trait CellSize {
     fn is_zero(&self) -> bool;
     fn is_nonzero(&self) -> bool;
 
-    fn from_stdout(c: u8) -> Self where Self: Sized;
-    fn to_stdin(&self) -> u8 where Self: Sized;
+    fn from_stdin(c: u8) -> Self where Self: Sized;
+    fn to_stdout(&self) -> u8 where Self: Sized;
 
     fn from_tk_value(v: i32) -> Self where Self: Sized;
 }
@@ -39,8 +39,8 @@ impl CellSize for u8 {
         *self > 0
     }
 
-    fn from_stdout(c: u8) -> u8 { c }
-    fn to_stdin(&self) -> u8 { *self }
+    fn from_stdin(c: u8) -> u8 { c }
+    fn to_stdout(&self) -> u8 { *self }
 
     fn from_tk_value(v: i32) -> u8 { v as u8 }
 }
@@ -66,8 +66,8 @@ impl CellSize for u16 {
         *self > 0
     }
 
-    fn from_stdout(c: u8) -> u16 { c as u16 }
-    fn to_stdin(&self) -> u8 { *self as u8 }
+    fn from_stdin(c: u8) -> u16 { c as u16 }
+    fn to_stdout(&self) -> u8 { *self as u8 }
 
     fn from_tk_value(v: i32) -> u16 { v as u16 }
 }
@@ -93,8 +93,8 @@ impl CellSize for u32 {
         *self > 0
     }
 
-    fn from_stdout(c: u8) -> u32 { c as u32 }
-    fn to_stdin(&self) -> u8 { *self as u8 }
+    fn from_stdin(c: u8) -> u32 { c as u32 }
+    fn to_stdout(&self) -> u8 { *self as u8 }
 
     fn from_tk_value(v: i32) -> u32 { v as u32 }
 }
@@ -120,8 +120,8 @@ impl CellSize for u64 {
         *self > 0
     }
 
-    fn from_stdout(c: u8) -> u64 { c as u64 }
-    fn to_stdin(&self) -> u8 { *self as u8 }
+    fn from_stdin(c: u8) -> u64 { c as u64 }
+    fn to_stdout(&self) -> u8 { *self as u8 }
 
     fn from_tk_value(v: i32) -> u64 { v as u64 }
 }
